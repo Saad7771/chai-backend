@@ -1,6 +1,6 @@
 //To standarized error (if error come then it come in this formate)
 
-class ApiError extends Error {
+class ApiErrors extends Error {
     constructor(
         statusCode,
         message= "Something went wrong",
@@ -23,4 +23,4 @@ class ApiError extends Error {
     }
 }
 
-export {ApiError}
+export {ApiErrors}
