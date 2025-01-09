@@ -3,12 +3,13 @@ import { ApiErrors } from "../utils/ApiErrors.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
 const generateAccessTokenAndRefereshToken = async (userId) => {
     try {
         const user = await User.findById(userId)
         const accessToken = user.generateAccessToken()
-        const refereshToken = generateRefereshToken()
+        const refereshToken = user.generateRefereshToken()
         
         user.refereshToken = refereshToken
         await  user.save({validateBeforeSave: false})
@@ -92,7 +93,7 @@ const registerUser = asyncHandler( async (req, res) => {
     )
 } )
 
-const loginUser = asyncHandler(async (req,re) =>{
+const loginUser = asyncHandler(async (req,res) =>{
     //req body-> data
     //username or email
     //find the user 
@@ -100,12 +101,12 @@ const loginUser = asyncHandler(async (req,re) =>{
     //access and referesh token
     //send cookie
 
-    const{email, username, password} = req.body
-    if(!username || !email){
+    const{username, email, password} = req.body
+    if(!username && !email){
         throw new ApiErrors(400, "username or password is required")
     }
     const user = await User.findOne({
-        $or: [{username}, {emil}]
+        $or: [{username}, {email}]
     })
 
     if(!user){
@@ -119,8 +120,10 @@ const loginUser = asyncHandler(async (req,re) =>{
 
     const {accessToken, refereshToken} = await generateAccessTokenAndRefereshToken(user._id)
 
-    const loggedInUser = User.findById(user._id).
+    const loggedInUser = await User.findById(user._id).
     select("-password -refereshToken")
+
+    // console.log("Access Token: ", accessToken)
 
     const options = {
         httpOnly: true,
@@ -129,9 +132,9 @@ const loginUser = asyncHandler(async (req,re) =>{
 
     return res
     .status(200)
-    .cookie("accessToken", accessToken, Options)
+    .cookie("accessToken", accessToken, options)
     .cookie("refereshToken", refereshToken, options)
-    .jso( 
+    .json( 
         new ApiErrors(
             200,
             {
@@ -144,11 +147,13 @@ const loginUser = asyncHandler(async (req,re) =>{
 })
 
 const logoutUser = asyncHandler(async (req,res) => {
+    console.log("Inside logOut handler");
+    
     await User.findByIdAndUpdate(
         req.user._id,
         {
-            $set: {
-                refereshToken: undefined
+            $unset: {
+                refereshToken: 1
             }
         },
         {
@@ -168,8 +173,56 @@ const logoutUser = asyncHandler(async (req,res) => {
 
 })
 
+const refereshAccessToken = asyncHandler (async(req,res) => {
+    const incomingRefereshToken = req.cookies.refereshToken || req.body.refereshToken
+    
+    if(!incomingRefereshToken){
+        throw new ApiErrors (401, "Unauthorized request")
+    }
+
+    try {
+        const decodedToken = jwt.verify(
+            incomingRefereshToken,
+            process.env.REFERESH_TOKEN_SECRET
+        )
+    
+        const user = await User.findById(decodedToken?._id)
+    
+        if(!user){
+            throw new ApiErrors(401,"Invalid Referesh Token")
+        }
+    
+        if (incomingRefereshToken !== user?.refereshToken) {
+            throw new ApiErrors (401, "Referesh token is expired or used")
+        }
+    
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+    
+        const {accessToken, newRefereshToken} = await generateAccessTokenAndRefereshToken(user._id)
+    
+        return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refereshToken", newRefereshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                {accessToken, refereshToken: newRefereshToken}, 
+                "Access token referesh"
+            )
+        )
+    
+    } catch (error) {
+        throw new ApiErrors(401, error?.message || "Invalid refesh token")
+    }
+})
+
 export {
     registerUser,
     loginUser,
-    logoutUser
+    logoutUser,
+    refereshAccessToken
 }
