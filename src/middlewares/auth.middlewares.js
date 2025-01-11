@@ -5,12 +5,12 @@ import { ApiErrors } from "../utils/ApiErrors.js";
 
 export const verifyJWT = asyncHandler(async(req, _, next) => {
   // let stringToken
-  console.log("Inside verifyJWT")
+  // console.log("Inside verifyJWT")
   // console.log(req.header("Authorization").replace("Bearer ", "").trim())
     try {
-        const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "").trim()
+        // const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "").trim()
         // console.log("Trying from cookies: ", req.cookies?.accessToken)
-        // const token = req.header("Authorization").replace("Bearer ", "").trim()
+        const token = req.header("Authorization").replace("Bearer ", "").trim()
         
         //  console.log("Token from request:", token);
         //  console.log(typeof token)

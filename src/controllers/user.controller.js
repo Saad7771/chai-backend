@@ -3,7 +3,7 @@ import { ApiErrors } from "../utils/ApiErrors.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
-import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken"; 
 
 const generateAccessTokenAndRefereshToken = async (userId) => {
     try {
@@ -147,7 +147,7 @@ const loginUser = asyncHandler(async (req,res) =>{
 })
 
 const logoutUser = asyncHandler(async (req,res) => {
-    console.log("Inside logOut handler");
+    // console.log("Inside logOut handler");
     
     await User.findByIdAndUpdate(
         req.user._id,
@@ -220,9 +220,131 @@ const refereshAccessToken = asyncHandler (async(req,res) => {
     }
 })
 
+const changeCurrentPassword = asyncHandler (async (req, res) => {
+
+    const { oldPassword, newPassword } = req.body
+
+    const user = await User.findById(req.user?._id)
+
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    if (!isPasswordCorrect) {
+        throw new ApiErrors(401,"Invalid old password")
+    }
+
+    user.password = newPassword
+    await user.save({validateBeforeSave: false})
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password Change Successfully"))
+
+})
+
+const getCurrentUser = asyncHandler (async (req, res) => {
+    return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Current user fetched suucessfully"))
+})
+
+const updateAccountDetail = asyncHandler (async (req, res) => {
+
+    const { fullname, email } = req.body
+
+    if (!fullname || !email) {
+        throw new ApiErrors (401, "All fields are required") 
+    }
+
+    const user = User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                fullname: fullname,
+                email: email
+            }
+        },
+        { new: true } //update hone ke baad jo info rahti hai wo return hoti hai
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json (new ApiResponse(200, user, "Account details updated successfully"))
+})
+
+const updateUserAvatar = asyncHandler (async (req, res) => {
+    const avatarLpcalPath = req.file?.path
+
+    if (!avatarLpcalPath) {
+        throw new ApiErrors (401, "Avatar file is missing")
+    }
+
+    const avatar = await uploadOnCloudinary(avatarLpcalPath)
+
+    if (!avatar.url) {
+        throw  new ApiErrors (401,"Error while uploading on avatar")
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                avatar: avatar.url
+            }
+        },
+        {new: true}
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse (200, user, "Avatar updated successfully")
+    )
+
+
+
+})
+
+const updateUserCoverImage = asyncHandler (async (req, res) => {
+    
+    const coverImageLpcalPath = req.file?.path
+
+    if (!coverImageLpcalPath) {
+        throw new ApiErrors (401, "Cover image file is missing")
+    }
+
+    const coverImage = await uploadOnCloudinary(coverImageLpcalPath)
+
+    if (!coverImage.url) {
+        throw  new ApiErrors (401,"Error while uploading on cover image")
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                coverImage: coverImage.url
+            }
+        },
+        {new: true}
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse (200, user, "Cover image updated successfully")
+    )
+
+
+})
+
 export {
     registerUser,
     loginUser,
     logoutUser,
-    refereshAccessToken
+    refereshAccessToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateAccountDetail,
+    updateUserAvatar,
+    updateUserCoverImage
 }
